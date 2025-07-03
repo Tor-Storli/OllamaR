@@ -1,0 +1,651 @@
+---
+title: "Comprehensive Ollamar Tutorial"
+subtitle: "Exploring AI Models with R and Quarto"
+author: "Tor Storli"
+date: today
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "Show code"
+    embed-resources: true
+    smooth-scroll: true
+    css: |
+      .ai-response {
+        background-color: #f8f9fa;
+        border-left: 4px solid #007bff;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 0.25rem;
+      }
+      .model-comparison {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 0.25rem;
+      }
+      .error-handling {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 0.25rem;
+      }
+execute:
+  warning: false
+  message: false
+  cache: true
+---
+
+```{r setup, include=TRUE}
+library(ollamar)
+library(gt)
+library(dplyr)
+library(htmltools)
+library(knitr)
+
+```
+
+```{r}
+# Custom function to format AI responses
+# Alternative format function that works better with Quarto
+format_ai_response_quarto <- function(content, title = NULL) {
+  if (!is.null(title)) {
+    # Return markdown formatted text
+    paste0("\n::: {.ai-response}\n**", title, "**\n\n", content, "\n:::\n")
+  } else {
+    paste0("\n::: {.ai-response}\n", content, "\n:::\n")
+  }
+}
+
+format_comparison <- function(content, model_name) {
+  div(class = "model-comparison",
+      h5(paste("🤖", model_name), style = "color: #856404; margin-top: 0;"),
+      p(content)
+  )
+}
+```
+
+# Introduction
+
+This tutorial demonstrates the comprehensive capabilities of the `ollamar` package for interacting with local AI models through Ollama. We'll explore various use cases from basic text generation to advanced applications like embeddings and batch processing.
+
+## 1. Basic Setup and Connection Test {#sec-setup}
+
+Let's start by testing our connection to Ollama and checking available models.
+
+```{r connection-test}
+# Test connection to Ollama
+connection_status <- tryCatch({
+  test_connection()
+  "✅ Connection successful"
+}, error = function(e) {
+  paste("❌ Connection failed:", e$message)
+})
+
+# List available models
+models <- tryCatch({
+  list_models()
+}, error = function(e) {
+  data.frame(name = "No models available", error = e$message)
+})
+
+# Create a nice table of available models
+if (nrow(models) > 0 && !"error" %in% names(models)) {
+  models_table <- models %>%
+    select(name, size, modified) %>%
+    slice_head(n = 10) %>%  # Show first 10 models
+    gt() %>%
+    tab_header(
+      title = "Available Ollama Models",
+      subtitle = "Local AI models ready for use"
+    ) %>%
+    cols_label(
+      name = "Model Name",
+      size = "Size",
+      modified = "Last Modified"
+    ) %>%
+    tab_style(
+      style = cell_text(weight = "bold"),
+      locations = cells_column_labels()
+    ) %>%
+    tab_options(
+      heading.background.color = "darkblue",
+      heading.title.font.size = "18px",
+      table.font.size = "14px"
+    )
+  
+ models_table
+} else {
+  print("No models available or connection error")
+}
+```
+
+::: {.ai-response}
+**Connection Status:** `r connection_status`
+:::
+
+## 2. Simple Text Generation {#sec-simple-gen}
+
+Let's start with basic text generation using Llama3.2.
+
+```{r simple-generation}
+# Basic text generation
+simple_response <- generate(
+  model = "llama3.2:latest",
+  prompt = "Explain quantum computing in simple terms for a 10-year-old"
+)
+
+response_content <- httr2::resp_body_json(simple_response)
+simple_text <- response_content$response
+
+```
+
+::: {.ai-response}
+**🧠 AI Explanation: Quantum Computing for Kids**
+
+`r simple_text`
+:::
+
+## 3. Interactive Chat Conversation {#sec-chat}
+
+Now let's engage in a more interactive chat conversation.
+
+```{r chat-conversation}
+# Start a chat conversation
+chat_response1 <- chat(
+  model = "llama3.2:latest",
+  messages = list(
+    list(role = "user", content = "I'm planning a trip to Norway. What are 3 must-see places?")
+  )
+)
+
+chat_content <- httr2::resp_body_json(chat_response1)
+norway_advice <- chat_content$message$content
+```
+
+`r format_ai_response_quarto(norway_advice, "🇳🇴 Travel Advice: Must-See Places in Norway")`
+
+## 4. Code Generation with CodeLlama {#sec-code-gen}
+
+Let's generate some practical code using specialized models.
+
+```{r code-generation}
+# Generate Python code for financial metrics
+python_code <- generate(
+  model = "codellama:7b",
+  prompt = "Write a Python function that calculates the following Financial metrics: NPV, IRR, and Payback Period for a given cash flow series"
+)
+
+python_content <- httr2::resp_body_json(python_code)
+python_code_text <- python_content$response
+
+# Generate R code for visualization
+r_code <- generate(
+  model = "codellama:7b",
+  prompt = "Write an R function that creates a beautiful ggplot2 visualization of the penguins dataset"
+)
+
+r_content <- httr2::resp_body_json(r_code)
+r_code_text <- r_content$response
+```
+
+### Python Financial Metrics Function
+
+::: {.ai-response}
+**💰 Generated Python Code:**
+
+```python
+`r python_code_text`
+```
+:::
+
+### R Data Visualization Function
+
+::: {.ai-response}
+**📊 Generated R Code:**
+
+```r
+`r r_code_text`
+```
+:::
+
+## 5. Code Explanation with DeepSeek-Coder {#sec-code-explain}
+
+Let's have AI explain some complex R code.
+
+```{r code-explanation}
+# Explain complex code
+code_explanation <- generate(
+  model = "deepseek-coder:6.7b",
+  prompt = "Explain this R code step by step:\n\nlibrary(dplyr)\niris %>% \n  group_by(Species) %>% \n  summarise(avg_length = mean(Sepal.Length), \n            count = n()) %>% \n  arrange(desc(avg_length))"
+)
+
+explanation_content <- httr2::resp_body_json(code_explanation)
+explanation_text <- explanation_content$response
+```
+
+`r format_ai_response_quarto(explanation_text, "🔍 Code Explanation: R dplyr Pipeline")`
+
+## 6. Creative Writing with Custom Parameters {#sec-creative}
+
+Let's explore creative writing with different temperature settings.
+
+```{r creative-writing}
+# Creative story with high creativity (temperature = 0.8)
+creative_story_high <- generate(
+  model = "llama3.2:latest",
+  prompt = "Write a short story about the origin and development of the double entry system of Accounting",
+  temperature = 0.8,
+  top_p = 0.9,
+  num_predict = 300
+)
+
+high_temp_content <- httr2::resp_body_json(creative_story_high)
+high_temp_story <- high_temp_content$response
+
+# Creative story with low creativity (temperature = 0.2)
+creative_story_low <- generate(
+  model = "llama3.2:latest",
+  prompt = "Write a short story about the origin and development of the double entry system of Accounting",
+  temperature = 0.2,
+  top_p = 0.1,
+  num_predict = 300
+)
+
+low_temp_content <- httr2::resp_body_json(creative_story_low)
+low_temp_story <- low_temp_content$response
+```
+
+### High Creativity (Temperature = 0.8)
+
+`r format_ai_response_quarto(high_temp_story, "🎨 Creative Story - High Temperature")`
+
+### Low Creativity (Temperature = 0.2)
+
+`r format_ai_response_quarto(low_temp_story, "📚 Factual Story - Low Temperature")`
+
+## 7. Structured Data Analysis {#sec-structured}
+
+Let's request structured analysis and present it nicely.
+
+```{r structured-analysis}
+# Ask for structured analysis
+data_analysis <- generate(
+  model = "llama3.2:latest",
+  prompt = "Analyze the pros and cons of remote work vs office work. Present your answer in a structured format with clear headings."
+)
+
+analysis_content <- httr2::resp_body_json(data_analysis)
+analysis_text <- analysis_content$response
+```
+
+`r format_ai_response_quarto(analysis_text, "⚖️ Structured Analysis: Remote vs Office Work")`
+
+## 8. Multi-Model Comparison {#sec-comparison}
+
+Let's compare responses from different models on the same question.
+
+```{r model-comparison}
+prompt_question <- "What are the key differences between machine learning and artificial intelligence?"
+
+# Response from Llama3.2
+llama_response <- generate(
+  model = "llama3.2:latest",
+  prompt = prompt_question
+)
+
+llama_content <- httr2::resp_body_json(llama_response)
+llama_text <- llama_content$response
+
+# Response from DeepSeek Coder
+deepseek_response <- generate(
+  model = "deepseek-coder:6.7b",
+  prompt = prompt_question
+)
+
+deepseek_content <- httr2::resp_body_json(deepseek_response)
+deepseek_text <- deepseek_content$response
+
+# Create comparison table
+comparison_data <- data.frame(
+  Model = c("Llama3.2", "DeepSeek-Coder"),
+  Response_Length = c(nchar(llama_text), nchar(deepseek_text)),
+  Focus = c("General AI knowledge", "Technical/coding perspective")
+)
+
+comparison_table <- comparison_data %>%
+  gt() %>%
+  tab_header(
+    title = "Model Comparison Summary",
+    subtitle = "Response characteristics for ML vs AI question"
+  ) %>%
+  cols_label(
+    Model = "AI Model",
+    Response_Length = "Response Length (chars)",
+    Focus = "Response Focus"
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_options(
+    heading.background.color = "#28a745",
+    table.font.size = "14px"
+  )
+comparison_table
+```
+
+### Model Responses
+
+`r format_comparison(llama_text, "Llama3.2")`
+
+`r format_comparison(deepseek_text, "DeepSeek-Coder")`
+
+## 9. Text Embeddings and Similarity Analysis {#sec-embeddings}
+
+Let's explore text similarity using embeddings.
+
+```{r embeddings}
+# Define test texts
+texts <- c(
+  "I love R and data science",
+  "I went to the zoo and looked at the wild animals",
+  "I think that the Tiger is the most awesome animal in the world",
+  "In Africa you will find wild lions as well as elephants"
+)
+
+# Get embeddings (this might take a moment)
+embeddings <- list()
+for(i in seq_along(texts)) {
+  embedding <- embed(model = "nomic-embed-text:latest", input = texts[i])
+  embeddings[[i]] <- embedding
+}
+
+# Calculate cosine similarity
+cosine_similarity <- function(a, b) {
+  sum(a * b) / (sqrt(sum(a^2)) * sqrt(sum(b^2)))
+}
+
+# # Create similarity matrix
+similarity_matrix <- matrix(0, nrow = length(texts), ncol = length(texts))
+for(i in 1:length(texts)) {
+  for(j in 1:length(texts)) {
+    similarity_matrix[i, j] <- cosine_similarity(embeddings[[i]], embeddings[[j]])
+  }
+}
+
+# # Create a nice similarity table
+similarity_df <- as.data.frame(similarity_matrix)
+colnames(similarity_df) <- paste("Text", 1:4)
+similarity_df$Text <- paste("Text", 1:4)
+similarity_df <- similarity_df %>% select(Text, everything())
+
+similarity_table <- similarity_df %>%
+  gt() %>%
+  tab_header(
+    title = "Text Similarity Matrix",
+    subtitle = "Cosine similarity between different texts"
+  ) %>%
+  fmt_number(
+    columns = -1,
+    decimals = 3
+  ) %>%
+  tab_style(
+    style = cell_fill(color = "#e3f2fd"),
+    locations = cells_body(columns = -1, rows = TRUE)
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_options(
+    heading.background.color = "#2196f3",
+    table.font.size = "12px"
+  )
+
+similarity_table
+
+# Display the texts for reference
+text_reference <- data.frame(
+  ID = paste("Text", 1:4),
+  Content = texts
+) %>%
+  gt() %>%
+  tab_header(
+    title = "Reference Texts",
+    subtitle = "Texts used in similarity analysis"
+  ) %>%
+  cols_label(
+    ID = "Text ID",
+    Content = "Text Content"
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_options(
+    heading.background.color = "#ff9800",
+    table.font.size = "14px"
+  )
+
+text_reference
+```
+
+## 10. Batch Processing Example {#sec-batch}
+
+Let's process multiple topics efficiently and present results in a table.
+
+```{r batch-processing}
+# Define topics for batch processing
+topics <- c("Climate change", "Artificial Intelligence", "Space exploration")
+
+# Process multiple prompts
+batch_results <- data.frame(
+  Topic = character(),
+  Response = character(),
+  Word_Count = numeric(),
+  Processing_Order = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for(i in seq_along(topics)) {
+  cat("Processing topic", i, "of", length(topics), ":", topics[i], "\n")
+  
+  result <- generate(
+    model = "llama3.2:latest",
+    prompt = paste("Explain", topics[i], "in exactly 2 sentences"),
+    num_predict = 100
+  )
+  
+  result_content <- httr2::resp_body_json(result)
+  response_text <- result_content$response
+  
+  batch_results <- rbind(batch_results, data.frame(
+    Topic = topics[i],
+    Response = response_text,
+    Word_Count = length(strsplit(response_text, "\\s+")[[1]]),
+    Processing_Order = i,
+    stringsAsFactors = FALSE
+  ))
+}
+
+# Create a summary table
+batch_summary <- batch_results %>%
+  select(Processing_Order, Topic, Word_Count) %>%
+  gt() %>%
+  tab_header(
+    title = "Batch Processing Summary",
+    subtitle = "Overview of processed topics"
+  ) %>%
+  cols_label(
+    Processing_Order = "Order",
+    Topic = "Topic",
+    Word_Count = "Words"
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_options(
+    heading.background.color = "#9c27b0",
+    table.font.size = "14px"
+  )
+
+batch_summary
+```
+
+### Batch Results
+
+```{r batch-results, results='asis'}
+for(i in 1:nrow(batch_results)) {
+  cat("\n")
+  cat(format_ai_response_quarto(batch_results$Response[i], 
+                        paste("🌍", batch_results$Topic[i])))
+  cat("\n")
+}
+```
+
+## 11. Advanced Chat with System Prompt {#sec-advanced-chat}
+
+Let's demonstrate advanced chat capabilities with system prompts.
+
+```{r advanced-chat}
+# Chat with system instructions
+advanced_chat <- chat(
+  model = "llama3.2:latest",
+  messages = list(
+    list(role = "system", content = "You are a helpful data science tutor. Always provide practical examples and suggest R code when relevant."),
+    list(role = "user", content = "How do I handle missing values in my dataset?")
+  )
+)
+
+advanced_content <- httr2::resp_body_json(advanced_chat)
+
+# Create metadata table
+chat_metadata <- data.frame(
+  Attribute = c("Model", "Created", "Role", "Response Length"),
+  Value = c(
+    advanced_content$model,
+    advanced_content$created_at,
+    advanced_content$message$role,
+    paste(nchar(advanced_content$message$content), "characters")
+  )
+) %>%
+  gt() %>%
+  tab_header(
+    title = "Chat Session Metadata",
+    subtitle = "Advanced chat with system prompt"
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_options(
+    heading.background.color = "#4caf50",
+    table.font.size = "14px"
+  )
+
+chat_metadata
+```
+
+`r format_ai_response_quarto(advanced_content$message$content, "🎓 Data Science Tutor Response")`
+
+## 12. Error Handling and Robustness {#sec-error-handling}
+
+Finally, let's implement robust error handling.
+
+```{r error-handling}
+# Robust function with error handling
+safe_generate <- function(model, prompt, max_retries = 3) {
+  attempts <- data.frame(
+    Attempt = numeric(),
+    Status = character(),
+    Error_Message = character(),
+    stringsAsFactors = FALSE
+  )
+  
+  for(i in 1:max_retries) {
+    result <- tryCatch({
+      response <- generate(model = model, prompt = prompt)
+      response_content <- httr2::resp_body_json(response)
+      
+      attempts <- rbind(attempts, data.frame(
+        Attempt = i,
+        Status = "Success",
+        Error_Message = "",
+        stringsAsFactors = FALSE
+      ))
+      
+      return(list(response = response_content$response, attempts = attempts))
+    }, error = function(e) {
+      attempts <<- rbind(attempts, data.frame(
+        Attempt = i,
+        Status = "Failed",
+        Error_Message = e$message,
+        stringsAsFactors = FALSE
+      ))
+      
+      if(i == max_retries) {
+        return(list(response = paste("Failed after", max_retries, "attempts"), attempts = attempts))
+      }
+      Sys.sleep(1)
+    })
+  }
+}
+
+# Test the robust function
+safe_result <- safe_generate(
+  model = "llama3.2:latest",
+  prompt = "What is the capital of Norway?"
+)
+
+# Create attempts table
+attempts_table <- safe_result$attempts %>%
+  gt() %>%
+  tab_header(
+    title = "Error Handling Attempts",
+    subtitle = "Robust generation with retry logic"
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_style(
+    style = cell_fill(color = "#d4edda"),
+    locations = cells_body(columns = everything(), rows = Status == "Success")
+  ) %>%
+  tab_style(
+    style = cell_fill(color = "#f8d7da"),
+    locations = cells_body(columns = everything(), rows = Status == "Failed")
+  ) %>%
+  tab_options(
+    heading.background.color = "#dc3545",
+    table.font.size = "14px"
+  )
+
+attempts_table
+```
+
+::: {.error-handling}
+**🛡️ Robust Generation Result:**
+
+`r safe_result$response`
+:::
+
+## Conclusion
+
+This tutorial has demonstrated the comprehensive capabilities of the `ollamar` package, from basic text generation to advanced features like embeddings and error handling. The combination of R, Quarto, and the `gt` package provides a powerful platform for creating interactive AI-powered documents with beautiful formatting.
+
+### Key Takeaways
+
+- **Model Variety**: Different models excel at different tasks
+- **Parameter Tuning**: Temperature and top_p significantly affect creativity
+- **Error Handling**: Robust implementations are essential for production use
+- **Batch Processing**: Efficient for handling multiple similar tasks
+- **Embeddings**: Powerful for text similarity and semantic search
+
+### End Of Document
